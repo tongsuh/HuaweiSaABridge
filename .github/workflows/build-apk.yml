@@ -3,6 +3,8 @@ name: Build Huawei SaA Bridge APK
 on:
   push:
     branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -12,6 +14,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -25,15 +29,18 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '8.7'
+        gradle-version: '8.10.2'
 
-    - name: Build Debug APK
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+
+    - name: Build Mainline Debug APK
       run: |
-        gradle assembleDebug --stacktrace
+        ./gradlew assembleMainlineDebug --stacktrace
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: HuaweiSaABridge-debug-apk
-        path: app/build/outputs/apk/debug/*.apk
-        retention-days: 7
+        name: Gadgetbridge-HuaweiSaA-debug-apk
+        path: app/build/outputs/apk/mainline/debug/*.apk
+        retention-days: 14
