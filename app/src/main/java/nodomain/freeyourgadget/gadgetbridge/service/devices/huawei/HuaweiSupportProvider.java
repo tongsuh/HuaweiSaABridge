@@ -2595,6 +2595,12 @@ public class HuaweiSupportProvider {
         } catch (Exception e) {
             LOG.error("Failed to start realtime workout heart rate", e);
         }
+        try {
+            SetAutomaticHeartrateRequest autoHrReq = new SetAutomaticHeartrateRequest(this);
+            autoHrReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to ensure automatic heart rate for SaA", e);
+        }
     }
 
     public void stopRealtimeWorkoutHeartrate() {
@@ -2657,16 +2663,36 @@ public class HuaweiSupportProvider {
             LOG.warn("SendVibrateRequest failed", e);
         }
 
-        try {
-            SendNotificationRequest notifReq = new SendNotificationRequest(this);
-            NotificationSpec spec = new NotificationSpec();
-            spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.UNKNOWN;
-            spec.title = "REM";
-            spec.body = "Lucid Cue";
-            notifReq.buildNotificationTLVFromNotificationSpec(spec);
-            notifReq.doPerform();
-        } catch (Exception e) {
-            LOG.warn("Notification vibration fallback failed", e);
-        }
+        final int pulseCount = Math.max(1, repeat);
+        final int interval = Math.max(250, durationMs + 100);
+
+        new Thread(() -> {
+            for (int i = 0; i < pulseCount; i++) {
+                try {
+                    SendNotificationRequest notifReq = new SendNotificationRequest(this);
+                    NotificationSpec spec = new NotificationSpec();
+                    spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.UNKNOWN;
+                    spec.title = "REM";
+                    spec.body = "Lucid Cue";
+                    notifReq.buildNotificationTLVFromNotificationSpec(spec);
+                    notifReq.doPerform();
+                } catch (Exception e) {
+                    LOG.warn("Notification vibration cue failed", e);
+                }
+
+                if (i < pulseCount - 1) {
+                    try {
+                        Thread.sleep(interval);
+                    } catch (InterruptedException ignored) {}
+                }
+            }
+
+            // Automatically dismiss/clear the notification 1.2s later so the screen turns off and does not leave unread notifications
+            try {
+                Thread.sleep(1200);
+                StopNotificationRequest stopReq = new StopNotificationRequest(this);
+                stopReq.doPerform();
+            } catch (Exception ignored) {}
+        }).start();
     }
 }

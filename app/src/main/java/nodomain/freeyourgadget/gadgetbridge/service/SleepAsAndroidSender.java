@@ -81,22 +81,22 @@ public class SleepAsAndroidSender {
         if (enabled) {
             switch (feature) {
                 case ACCELEROMETER:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_movement", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_movement", true);
                     break;
                 case HEART_RATE:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_hr", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_hr", true);
                     break;
                 case SPO2:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_spo2", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_spo2", true);
                     break;
                 case OXIMETRY:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_oximetry", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_oximetry", true);
                     break;
                 case NOTIFICATIONS:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_notifications", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_notifications", true);
                     break;
                 case ALARMS:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_alarms", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_alarms", true);
                     break;
                 default:
                     break;
@@ -505,7 +505,7 @@ public class SleepAsAndroidSender {
     }
 
     public boolean isSleepAsAndroidEnabled() {
-        return GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_enable", false);
+        return GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_enable", true);
     }
 
     /**
