@@ -720,17 +720,41 @@ public class Workout {
         }
     }
 
-    public static class NotifyHeartRate {
-        public static final int id = 0x17;
+    public static class WorkoutControl {
+        public static final byte id = 0x01;
 
         public static class Request extends HuaweiPacket {
-            public Request(ParamsProvider paramsProvider) {
+            public Request(ParamsProvider paramsProvider, byte workoutType, byte action) {
                 super(paramsProvider);
 
                 this.serviceId = Workout.id;
                 this.commandId = id;
 
-                this.tlv = new HuaweiTLV().put(0x01, 0x03);
+                this.tlv = new HuaweiTLV().put(0x81, new HuaweiTLV()
+                        .put(0x01, workoutType)
+                        .put(0x02, action)
+                );
+
+                this.complete = true;
+            }
+        }
+    }
+
+    public static class NotifyHeartRate {
+        public static final int id = 0x17;
+
+        public static class Request extends HuaweiPacket {
+            public Request(ParamsProvider paramsProvider) {
+                this(paramsProvider, 0x03);
+            }
+
+            public Request(ParamsProvider paramsProvider, int action) {
+                super(paramsProvider);
+
+                this.serviceId = Workout.id;
+                this.commandId = id;
+
+                this.tlv = new HuaweiTLV().put(0x01, action);
 
                 this.complete = true;
             }

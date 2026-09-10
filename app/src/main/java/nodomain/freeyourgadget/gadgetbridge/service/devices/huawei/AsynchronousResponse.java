@@ -139,36 +139,32 @@ public class AsynchronousResponse {
             return;
         }
 
-        if (response.serviceId == nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout.id ||
-            response.serviceId == nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.FitnessData.id) {
-            HuaweiTLV tlv = response.getTlv();
-            if (tlv != null) {
-                try {
-                    Integer hr = extractTagValue(tlv, 0x02);
-                    if (hr == null || hr < 30 || hr > 230) {
-                        hr = extractTagValue(tlv, 0x17);
-                    }
+        HuaweiTLV tlv = response.getTlv();
+        if (tlv == null) {
+            return;
+        }
 
-                    if (hr != null && hr >= 30 && hr <= 230) {
-                        LOG.debug("Forwarding real-time HR to SaA: {}", hr);
-                        support.getSleepAsAndroidSender().onHrChanged(hr, 1000);
-                    }
+        try {
+            Integer hr = support.extractHeartRateFromTlv(tlv);
+            if (hr != null && hr >= 35 && hr <= 230) {
+                LOG.info("Forwarding real-time HR to SaA: {} bpm (Service=0x{})",
+                        hr, Integer.toHexString(response.serviceId & 0xFF));
+                support.getSleepAsAndroidSender().onHrChanged(hr, 0);
+            }
 
-                    Integer cadence = extractTagValue(tlv, 0x04);
-                    if (cadence != null && cadence > 0) {
-                        float motion = Math.min(10.0f, (cadence / 60.0f) * 1.5f);
-                        support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
-                    } else {
-                        Integer intensity = extractTagValue(tlv, 0x06);
-                        if (intensity != null && intensity > 0) {
-                            float motion = Math.min(10.0f, intensity / 10.0f);
-                            support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
-                        }
-                    }
-                } catch (Exception e) {
-                    LOG.debug("Error parsing SaA telemetry from Huawei packet: " + e.getMessage());
+            Integer cadence = extractTagValue(tlv, 0x04);
+            if (cadence != null && cadence > 0) {
+                float motion = Math.min(10.0f, (cadence / 60.0f) * 1.5f);
+                support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
+            } else {
+                Integer intensity = extractTagValue(tlv, 0x06);
+                if (intensity != null && intensity > 0) {
+                    float motion = Math.min(10.0f, intensity / 10.0f);
+                    support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
                 }
             }
+        } catch (Exception e) {
+            LOG.debug("Error parsing SaA telemetry from Huawei packet: " + e.getMessage());
         }
     }
 

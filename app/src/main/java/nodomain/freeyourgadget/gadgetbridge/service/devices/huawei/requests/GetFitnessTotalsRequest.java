@@ -52,5 +52,12 @@ public class GetFitnessTotalsRequest extends Request {
         int totalDistance = ((FitnessData.FitnessTotals.Response) receivedPacket).totalDistance;
 
         supportProvider.addTotalFitnessData(totalSteps, totalCalories, totalDistance);
+
+        if (receivedPacket != null && receivedPacket.getTlv() != null && supportProvider.getSleepAsAndroidSender() != null) {
+            Integer hr = supportProvider.extractHeartRateFromTlv(receivedPacket.getTlv());
+            if (hr != null && hr >= 35 && hr <= 230) {
+                supportProvider.getSleepAsAndroidSender().onHrChanged(hr, 0);
+            }
+        }
     }
 }

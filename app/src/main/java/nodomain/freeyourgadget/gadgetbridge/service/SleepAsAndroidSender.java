@@ -322,17 +322,18 @@ public class SleepAsAndroidSender {
      * @param sendDelay the send delay in ms. If 0 the data will be send right away. Anything bigger will gather all the data then send it all after the specified interval
      */
     public void onHrChanged(float hr, long sendDelay) {
-        if (!isDeviceDefault() || !isFeatureEnabled(SleepAsAndroidFeature.HEART_RATE) || !hasFeature(SleepAsAndroidFeature.HEART_RATE) || !trackingOngoing)
+        if (!isDeviceDefault() || !isFeatureEnabled(SleepAsAndroidFeature.HEART_RATE) || !hasFeature(SleepAsAndroidFeature.HEART_RATE) || !trackingOngoing) {
+            LOG.debug("Dropping HR update ({} bpm): default={}, featEnabled={}, hasFeat={}, ongoing={}",
+                    hr, isDeviceDefault(), isFeatureEnabled(SleepAsAndroidFeature.HEART_RATE),
+                    hasFeature(SleepAsAndroidFeature.HEART_RATE), trackingOngoing);
             return;
+        }
         if (trackingPaused) return;
 
         updateLastHrData(hr);
 
-        if (lastHrDataMs == 0) {
-            lastHrDataMs = System.currentTimeMillis();
-        }
         long ms = System.currentTimeMillis();
-        if (ms - lastHrDataMs >= sendDelay || sendDelay <= 0) {
+        if (sendDelay <= 0 || (lastHrDataMs > 0 && ms - lastHrDataMs >= sendDelay) || this.hrData.size() >= 1) {
             lastHrDataMs = ms;
             sendHrData();
         }
@@ -342,10 +343,20 @@ public class SleepAsAndroidSender {
      * Send the heart rate data
      */
     private synchronized void sendHrData() {
-        LOG.debug("Sending heart rate data: " + this.hrData);
+        if (this.hrData == null || this.hrData.isEmpty()) return;
+        float lastHr = this.hrData.get(this.hrData.size() - 1);
+        LOG.info("Broadcasting HR to Sleep as Android: {} bpm (batch count: {})", lastHr, this.hrData.size());
+
+        // 1. Classic SaA HR update intent
         Intent intent = new Intent(ACTION_HEART_RATE_DATA_UPDATE);
         intent.putExtra(DATA, convertToFloatArray(this.hrData));
         broadcastToSleepAsAndroid(intent);
+
+        // 2. Modern SaA sensor update intent for real-time tracking display
+        Intent extraIntent = new Intent(ACTION_EXTRA_DATA_UPDATE);
+        extraIntent.putExtra(EXTRA_DATA_HR, lastHr);
+        broadcastToSleepAsAndroid(extraIntent);
+
         this.hrData.clear();
     }
 

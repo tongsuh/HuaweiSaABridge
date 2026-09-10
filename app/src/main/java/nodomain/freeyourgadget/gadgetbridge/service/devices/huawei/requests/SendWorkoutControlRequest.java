@@ -1,4 +1,4 @@
-/*  Copyright (C) 2024 Damien Gaignon
+﻿/*  Copyright (C) 2024 Gadgetbridge Contributors
 
     This file is part of Gadgetbridge.
 
@@ -23,23 +23,29 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout.NotifyHeartRate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupportProvider;
 
-public class SendNotifyHeartRateCapabilityRequest extends Request {
-    private static final Logger LOG = LoggerFactory.getLogger(SendNotifyHeartRateCapabilityRequest.class);
+public class SendWorkoutControlRequest extends Request {
+    private static final Logger LOG = LoggerFactory.getLogger(SendWorkoutControlRequest.class);
 
-    private final int action;
+    public static final byte WORKOUT_TYPE_OUTDOOR_RUN = 0x01;
+    public static final byte WORKOUT_TYPE_INDOOR_RUN = 0x02;
+    public static final byte WORKOUT_TYPE_FREE_TRAIN = 0x08;
 
-    public SendNotifyHeartRateCapabilityRequest(HuaweiSupportProvider support) {
-        this(support, 0x03);
-    }
+    public static final byte ACTION_START = 0x01;
+    public static final byte ACTION_PAUSE = 0x02;
+    public static final byte ACTION_RESUME = 0x03;
+    public static final byte ACTION_STOP = 0x04;
 
-    public SendNotifyHeartRateCapabilityRequest(HuaweiSupportProvider support, int action) {
+    private final byte workoutType;
+    private final byte action;
+
+    public SendWorkoutControlRequest(HuaweiSupportProvider support, byte workoutType, byte action) {
         super(support);
         this.serviceId = Workout.id;
-        this.commandId = NotifyHeartRate.id;
+        this.commandId = Workout.WorkoutControl.id;
         this.addToResponse = false;
+        this.workoutType = workoutType;
         this.action = action;
     }
 
@@ -51,7 +57,7 @@ public class SendNotifyHeartRateCapabilityRequest extends Request {
     @Override
     protected List<byte[]> createRequest() throws RequestCreationException {
         try {
-            return new NotifyHeartRate.Request(paramsProvider, this.action).serialize();
+            return new Workout.WorkoutControl.Request(paramsProvider, workoutType, action).serialize();
         } catch (HuaweiPacket.CryptoException e) {
             throw new RequestCreationException(e);
         }
@@ -59,13 +65,6 @@ public class SendNotifyHeartRateCapabilityRequest extends Request {
 
     @Override
     protected void processResponse() {
-        LOG.debug("handle Send Workout HeartRate Capability Request: action={}", action);
-        if (receivedPacket != null && receivedPacket.getTlv() != null && supportProvider.getSleepAsAndroidSender() != null) {
-            Integer hr = supportProvider.extractHeartRateFromTlv(receivedPacket.getTlv());
-            if (hr != null && hr >= 35 && hr <= 230) {
-                LOG.info("Heart rate received in NotifyHeartRate response: {} bpm", hr);
-                supportProvider.getSleepAsAndroidSender().onHrChanged(hr, 0);
-            }
-        }
+        LOG.debug("Handled Workout Control Request: type={}, action={}", workoutType, action);
     }
 }

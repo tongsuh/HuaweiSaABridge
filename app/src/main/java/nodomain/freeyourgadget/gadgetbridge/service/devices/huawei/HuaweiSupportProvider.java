@@ -149,6 +149,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetS
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetStepDataCountRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetWorkoutCountRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendNotificationRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendWorkoutControlRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetMusicRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.AlarmsRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.DebugRequest;
@@ -2552,28 +2553,80 @@ public class HuaweiSupportProvider {
 
     private long lastStartTrackingTimestamp = 0;
 
+    private int sleepTrackingPollCount = 0;
+
     private final Runnable sleepTrackingPollingRunner = new Runnable() {
         @Override
         public void run() {
             if (sleepAsAndroidSender != null && sleepAsAndroidSender.isTrackingOngoing()) {
+                sleepTrackingPollCount++;
                 try {
                     GetFitnessTotalsRequest req = new GetFitnessTotalsRequest(HuaweiSupportProvider.this);
                     req.doPerform();
                 } catch (Exception e) {
                     LOG.debug("Sleep tracking polling error: {}", e.getMessage());
                 }
+
+                // Every 9 seconds (every 3rd poll), send HR notification heartbeat to keep PPG sensor active
+                if (sleepTrackingPollCount % 3 == 0) {
+                    try {
+                        SendNotifyHeartRateCapabilityRequest hrReq = new SendNotifyHeartRateCapabilityRequest(HuaweiSupportProvider.this, 0x01);
+                        hrReq.doPerform();
+                    } catch (Exception e) {
+                        LOG.debug("Sleep tracking HR keepalive error: {}", e.getMessage());
+                    }
+                }
+
                 handler.postDelayed(this, 3000L);
             }
         }
     };
 
     private void startSleepTrackingPollingRunner() {
+        sleepTrackingPollCount = 0;
         handler.removeCallbacks(sleepTrackingPollingRunner);
         handler.postDelayed(sleepTrackingPollingRunner, 2000L);
     }
 
     private void stopSleepTrackingPollingRunner() {
         handler.removeCallbacks(sleepTrackingPollingRunner);
+    }
+
+    public Integer extractHeartRateFromTlv(HuaweiTLV tlv) {
+        if (tlv == null) return null;
+        int[] hrTags = {0x02, 0x17, 0x05, 0x06, 0x16, 0x24};
+        for (int tag : hrTags) {
+            if (tlv.contains(tag)) {
+                try {
+                    Integer val = tlv.getAsInteger(tag);
+                    if (val != null && val >= 35 && val <= 230) {
+                        return val;
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    byte[] bytes = tlv.getBytes(tag);
+                    if (bytes != null && bytes.length > 0) {
+                        int bVal = bytes[0] & 0xFF;
+                        if (bVal >= 35 && bVal <= 230) {
+                            return bVal;
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        try {
+            for (HuaweiTLV.TLV item : tlv.get()) {
+                byte itemTag = item.getTag();
+                if ((itemTag & 0x80) != 0) {
+                    try {
+                        HuaweiTLV sub = new HuaweiTLV().parse(item.getValue());
+                        Integer val = extractHeartRateFromTlv(sub);
+                        if (val != null) return val;
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     public void onSleepAsAndroidAction(String action, android.os.Bundle extras) {
@@ -2641,28 +2694,34 @@ public class HuaweiSupportProvider {
     }
 
     public void startRealtimeWorkoutHeartrate() {
-        LOG.info("Starting Huawei Band real-time workout heart rate, TruSleep, and polling for SaA");
+        LOG.info("Starting Huawei Band real-time workout heart rate streaming for SaA");
         try {
-            // Force enable continuous automatic heart rate so green optical PPG sensor turns on
+            // 1. Force enable continuous automatic heart rate
             SetAutomaticHeartrateRequest autoHrReq = new SetAutomaticHeartrateRequest(this, true);
             autoHrReq.doPerform();
         } catch (Exception e) {
             LOG.warn("Failed to ensure automatic heart rate for SaA", e);
         }
         try {
-            // Force enable TruSleep high-precision optical PPG tracking
-            SetTruSleepRequest truSleepReq = new SetTruSleepRequest(this, true);
-            truSleepReq.doPerform();
+            // 2. Start workout session on band (Free Training) to keep green optical PPG sensor constantly measuring
+            SendWorkoutControlRequest workoutReq = new SendWorkoutControlRequest(
+                    this,
+                    SendWorkoutControlRequest.WORKOUT_TYPE_FREE_TRAIN,
+                    SendWorkoutControlRequest.ACTION_START
+            );
+            workoutReq.doPerform();
         } catch (Exception e) {
-            LOG.warn("Failed to ensure TruSleep for SaA", e);
+            LOG.warn("Failed to start workout control on band", e);
         }
         try {
-            SendNotifyHeartRateCapabilityRequest req = new SendNotifyHeartRateCapabilityRequest(this);
+            // 3. Enable 1Hz real-time heart rate notifications from workout
+            SendNotifyHeartRateCapabilityRequest req = new SendNotifyHeartRateCapabilityRequest(this, 0x01);
             req.doPerform();
         } catch (Exception e) {
             LOG.warn("Failed to start realtime workout heart rate capability", e);
         }
         try {
+            // 4. Enable rest heart rate notifications
             SendNotifyRestHeartRateCapabilityRequest restReq = new SendNotifyRestHeartRateCapabilityRequest(this);
             restReq.doPerform();
         } catch (Exception e) {
@@ -2676,18 +2735,29 @@ public class HuaweiSupportProvider {
         stopSleepTrackingPollingRunner();
         lastTotalSteps = -1;
         try {
-            // Restore configured automatic heart rate preference
+            // 1. Stop workout session on band
+            SendWorkoutControlRequest stopWorkoutReq = new SendWorkoutControlRequest(
+                    this,
+                    SendWorkoutControlRequest.WORKOUT_TYPE_FREE_TRAIN,
+                    SendWorkoutControlRequest.ACTION_STOP
+            );
+            stopWorkoutReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to stop workout control on band", e);
+        }
+        try {
+            // 2. Disable workout heart rate notifications
+            SendNotifyHeartRateCapabilityRequest stopHrReq = new SendNotifyHeartRateCapabilityRequest(this, 0x02);
+            stopHrReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to stop workout heart rate capability", e);
+        }
+        try {
+            // 3. Restore configured automatic heart rate preference
             SetAutomaticHeartrateRequest autoHrReq = new SetAutomaticHeartrateRequest(this);
             autoHrReq.doPerform();
         } catch (Exception e) {
             LOG.warn("Failed to restore automatic heart rate after SaA tracking", e);
-        }
-        try {
-            // Restore configured TruSleep preference
-            SetTruSleepRequest truSleepReq = new SetTruSleepRequest(this);
-            truSleepReq.doPerform();
-        } catch (Exception e) {
-            LOG.warn("Failed to restore TruSleep after SaA tracking", e);
         }
     }
 
