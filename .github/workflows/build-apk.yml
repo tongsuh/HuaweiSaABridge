@@ -36,7 +36,7 @@ jobs:
 
     - name: Build Mainline Debug APK
       run: |
-        ./gradlew assembleMainlineDebug --stacktrace
+        ./gradlew assembleMainlineDebug --stacktrace --info
 
     - name: Upload APK
       uses: actions/upload-artifact@v4

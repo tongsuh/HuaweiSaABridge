@@ -106,7 +106,7 @@ public class SleepAsAndroidPreferencesActivity extends AbstractSettingsActivityV
                         GBDevice dev = GBApplication.app().getDeviceManager().getDeviceByAddress(devAddr);
                         if (dev != null && dev.isConnected()) {
                             android.os.Bundle bundle = new android.os.Bundle();
-                            GBApplication.deviceService(dev).onSleepAsAndroidAction(
+                            GBApplication.deviceService().onSleepAsAndroidAction(
                                     nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction.HINT,
                                     bundle
                             );

@@ -2596,7 +2596,7 @@ public class HuaweiSupportProvider {
 
     public void triggerLucidHint(android.os.Bundle extras) {
         nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings settings =
-                new nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings(context);
+                new nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings();
         int intensity = settings.getVibrateIntensity();
         int repeat = settings.getVibrateRepeat();
         int duration = settings.getVibrateDurationMs();
@@ -2633,7 +2633,7 @@ public class HuaweiSupportProvider {
         } catch (Exception e) {
             LOG.warn("SendVibrateRequest failed, sending pulse notification fallback", e);
             NotificationSpec spec = new NotificationSpec();
-            spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.GENERIC;
+            spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.UNKNOWN;
             spec.title = "REM";
             spec.body = "Lucid Cue";
             onNotification(spec);

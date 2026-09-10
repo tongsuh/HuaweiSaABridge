@@ -249,7 +249,7 @@ public class HuaweiPacket {
 
     public byte serviceId = 0;
     public byte commandId = 0;
-    protected HuaweiTLV tlv = null;
+    public HuaweiTLV tlv = null;
 
     private byte[] partialPacket = null;
     protected byte[] payload = null;

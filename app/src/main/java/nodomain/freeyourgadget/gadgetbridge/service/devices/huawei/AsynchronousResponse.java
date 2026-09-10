@@ -58,6 +58,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Menstrual;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.MusicControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.FileUpload;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.P2P;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTLV;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Watchface;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
@@ -140,25 +141,26 @@ public class AsynchronousResponse {
 
         if (response.serviceId == nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout.id ||
             response.serviceId == nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.FitnessData.id) {
-            if (response.tlv != null) {
+            HuaweiTLV tlv = response.getTlv();
+            if (tlv != null) {
                 try {
                     int hr = -1;
-                    if (response.tlv.contains(0x02)) {
-                        hr = response.tlv.getByte(0x02) & 0xFF;
-                    } else if (response.tlv.contains(0x17)) {
-                        hr = response.tlv.getByte(0x17) & 0xFF;
+                    if (tlv.contains(0x02)) {
+                        hr = tlv.getByte(0x02) & 0xFF;
+                    } else if (tlv.contains(0x17)) {
+                        hr = tlv.getByte(0x17) & 0xFF;
                     }
 
                     if (hr >= 30 && hr <= 220) {
                         support.getSleepAsAndroidSender().onHrChanged(hr, 1000);
                     }
 
-                    if (response.tlv.contains(0x04)) {
-                        int cadence = response.tlv.getShort(0x04) & 0xFFFF;
+                    if (tlv.contains(0x04)) {
+                        int cadence = tlv.getShort(0x04) & 0xFFFF;
                         float motion = Math.min(10.0f, (cadence / 60.0f) * 1.5f);
                         support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
-                    } else if (response.tlv.contains(0x06)) {
-                        int intensity = response.tlv.getByte(0x06) & 0xFF;
+                    } else if (tlv.contains(0x06)) {
+                        int intensity = tlv.getByte(0x06) & 0xFF;
                         float motion = Math.min(10.0f, intensity / 10.0f);
                         support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
                     }
