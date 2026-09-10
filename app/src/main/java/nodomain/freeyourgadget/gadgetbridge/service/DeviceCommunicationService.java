@@ -1122,8 +1122,13 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 deviceSupport.onSetGpsLocation(location);
                 break;
             case ACTION_SLEEP_AS_ANDROID:
-                if(device.getDeviceCoordinator().supportsSleepAsAndroid() && GBApplication.getPrefs().getString("sleepasandroid_device", new String()).equals(device.getAddress()))
+                String configuredDev = GBApplication.getPrefs().getString("sleepasandroid_device", "");
+                boolean isTargetDevice = configuredDev.isEmpty() || configuredDev.equals(device.getAddress());
+                if (device.getDeviceCoordinator().supportsSleepAsAndroid() && isTargetDevice)
                 {
+                    if (configuredDev.isEmpty()) {
+                        GBApplication.getPrefs().getPreferences().edit().putString("sleepasandroid_device", device.getAddress()).apply();
+                    }
                     final String sleepAsAndroidAction = intentCopy.getStringExtra(EXTRA_SLEEP_AS_ANDROID_ACTION);
                     deviceSupport.onSleepAsAndroidAction(sleepAsAndroidAction, intentCopy.getExtras());
                 }

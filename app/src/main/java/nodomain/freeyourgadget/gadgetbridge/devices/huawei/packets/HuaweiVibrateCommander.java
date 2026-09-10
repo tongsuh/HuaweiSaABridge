@@ -25,6 +25,23 @@ public class HuaweiVibrateCommander {
     public static final byte TAG_VIBRATE_INTENSITY = 0x04;
 
     /**
+     * 符合华为 BLE 规范的标准震动报文对象，继承自 HuaweiPacket 确保通过会话密钥加密
+     */
+    public static class VibratePacket extends nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket {
+        public VibratePacket(ParamsProvider paramsProvider, int intensity, int repeat, int durationMs) {
+            super(paramsProvider);
+            this.serviceId = SERVICE_DEVICE_CONTROL;
+            this.commandId = COMMAND_SET_VIBRATION;
+            this.tlv = new nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTLV()
+                    .put(TAG_VIBRATE_PATTERN, (byte) ((repeat > 1) ? 0x02 : 0x01))
+                    .put(TAG_VIBRATE_DURATION, (short) durationMs)
+                    .put(TAG_VIBRATE_REPEAT, (byte) repeat)
+                    .put(TAG_VIBRATE_INTENSITY, (byte) intensity);
+            this.complete = true;
+        }
+    }
+
+    /**
      * 根据动态传入的自定义参数，构建清醒梦（Lucid Dream）微震报文
      * @param intensity 震动强度 (1=微弱, 2=中等, 3=强力)
      * @param repeat 震动次数 (1~10次)

@@ -498,7 +498,8 @@ public class SleepAsAndroidSender {
     public boolean isDeviceDefault() {
         if (device == null || !device.isInitialized()) return false;
         if (isSleepAsAndroidEnabled()) {
-            return device.getAddress().equals(GBApplication.getPrefs().getString("sleepasandroid_device", ""));
+            String defaultDevice = GBApplication.getPrefs().getString("sleepasandroid_device", "");
+            return defaultDevice.isEmpty() || device.getAddress().equals(defaultDevice);
         }
         return false;
     }

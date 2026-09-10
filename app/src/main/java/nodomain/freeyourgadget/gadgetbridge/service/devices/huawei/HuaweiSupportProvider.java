@@ -566,9 +566,13 @@ public class HuaweiSupportProvider {
 
     protected void initializeDeviceHiChainMode() {
         try {
-            GetHiChainRequest hiChainReq = new GetHiChainRequest(this, firstConnection);
+            boolean needsFirstConnection = firstConnection || getSecretKey() == null;
+            if (needsFirstConnection) {
+                GB.toast(context, "正在配对华为手环，请在手环屏幕上点击【√】允许配对！", Toast.LENGTH_LONG, GB.INFO);
+            }
+            GetHiChainRequest hiChainReq = new GetHiChainRequest(this, needsFirstConnection);
             hiChainReq.setFinalizeReq(configureReq);
-            if (firstConnection) {
+            if (needsFirstConnection) {
                 GetPincodeRequest pincodeReq = new GetPincodeRequest(this);
                 pincodeReq.nextRequest(hiChainReq);
                 pincodeReq.doPerform();
@@ -2528,14 +2532,17 @@ public class HuaweiSupportProvider {
         SleepAsAndroidSender sender = getSleepAsAndroidSender();
         if (sender == null) return;
 
-        try {
-            sender.validateAction(action);
-        } catch (UnsupportedOperationException e) {
-            LOG.warn("Unsupported SleepAsAndroid action: " + action);
-            return;
+        boolean isTest = extras != null && extras.getBoolean("IS_TEST", false);
+        if (!isTest && !SleepAsAndroidAction.HINT.equals(action)) {
+            try {
+                sender.validateAction(action);
+            } catch (UnsupportedOperationException e) {
+                LOG.warn("Unsupported SleepAsAndroid action: " + action);
+                return;
+            }
         }
 
-        LOG.info("Huawei handling SleepAsAndroid action: " + action);
+        LOG.info("Huawei handling SleepAsAndroid action: " + action + (isTest ? " (TEST)" : ""));
 
         switch (action) {
             case SleepAsAndroidAction.CHECK_CONNECTED:
@@ -2615,10 +2622,25 @@ public class HuaweiSupportProvider {
     public void triggerAlarmVibration() {
         LOG.info("Triggering SaA alarm strong vibration on Huawei Band");
         sendVibrateCommand(3, 8, 800);
+        try {
+            SendNotificationRequest callReq = new SendNotificationRequest(this);
+            CallSpec callSpec = new CallSpec();
+            callSpec.name = "Alarm (Sleep as Android)";
+            callReq.buildNotificationTLVFromCallSpec(callSpec);
+            callReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Alarm call vibration trigger failed", e);
+        }
     }
 
     public void stopAlarmVibration() {
         LOG.info("Stopping SaA alarm vibration on Huawei Band");
+        try {
+            StopNotificationRequest stopReq = new StopNotificationRequest(this);
+            stopReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Stopping alarm vibration failed", e);
+        }
     }
 
     public void triggerFindDevice() {
@@ -2627,16 +2649,24 @@ public class HuaweiSupportProvider {
     }
 
     public void sendVibrateCommand(int intensity, int repeat, int durationMs) {
+        LOG.info("sendVibrateCommand: intensity={}, repeat={}, duration={}ms", intensity, repeat, durationMs);
         try {
             SendVibrateRequest req = new SendVibrateRequest(this, intensity, repeat, durationMs);
             req.doPerform();
         } catch (Exception e) {
-            LOG.warn("SendVibrateRequest failed, sending pulse notification fallback", e);
+            LOG.warn("SendVibrateRequest failed", e);
+        }
+
+        try {
+            SendNotificationRequest notifReq = new SendNotificationRequest(this);
             NotificationSpec spec = new NotificationSpec();
             spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.UNKNOWN;
             spec.title = "REM";
             spec.body = "Lucid Cue";
-            onNotification(spec);
+            notifReq.buildNotificationTLVFromNotificationSpec(spec);
+            notifReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Notification vibration fallback failed", e);
         }
     }
 }

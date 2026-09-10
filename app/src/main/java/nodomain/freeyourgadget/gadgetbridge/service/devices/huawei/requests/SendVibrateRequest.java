@@ -30,14 +30,17 @@ public class SendVibrateRequest extends Request {
         this.durationMs = durationMs;
         this.serviceId = HuaweiVibrateCommander.SERVICE_DEVICE_CONTROL;
         this.commandId = HuaweiVibrateCommander.COMMAND_SET_VIBRATION;
+        this.addToResponse = false;
     }
 
     @Override
     protected List<byte[]> createRequest() throws RequestCreationException {
         LOG.debug("Creating Huawei Vibrate Request: intensity={}, repeat={}, duration={}ms", intensity, repeat, durationMs);
-        List<byte[]> list = new ArrayList<>();
-        list.add(HuaweiVibrateCommander.buildLucidDreamCuePacket(intensity, repeat, durationMs));
-        return list;
+        try {
+            return new HuaweiVibrateCommander.VibratePacket(paramsProvider, intensity, repeat, durationMs).serialize();
+        } catch (nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket.CryptoException e) {
+            throw new RequestCreationException(e);
+        }
     }
 
     @Override

@@ -76,7 +76,7 @@ public class SleepAsAndroidPreferencesActivity extends AbstractSettingsActivityV
                                 }
                             }
                         }
-                        return false;
+                        return true;
                     }
                 });
 
@@ -101,20 +101,70 @@ public class SleepAsAndroidPreferencesActivity extends AbstractSettingsActivityV
             final Preference testVibePref = findPreference("pref_lucid_test_vibration");
             if (testVibePref != null) {
                 testVibePref.setOnPreferenceClickListener(preference -> {
+                    List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
+                    GBDevice targetDev = null;
                     String devAddr = GBApplication.getPrefs().getString("sleepasandroid_device", "");
                     if (!devAddr.isEmpty()) {
-                        GBDevice dev = GBApplication.app().getDeviceManager().getDeviceByAddress(devAddr);
-                        if (dev != null && dev.isConnected()) {
-                            android.os.Bundle bundle = new android.os.Bundle();
-                            GBApplication.deviceService().onSleepAsAndroidAction(
-                                    nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction.HINT,
-                                    bundle
-                            );
-                            nodomain.freeyourgadget.gadgetbridge.util.GB.toast(getString(R.string.pref_lucid_test_sent), android.widget.Toast.LENGTH_SHORT, nodomain.freeyourgadget.gadgetbridge.util.GB.INFO);
-                            return true;
+                        targetDev = GBApplication.app().getDeviceManager().getDeviceByAddress(devAddr);
+                    }
+                    if (targetDev == null || !targetDev.isConnected()) {
+                        for (GBDevice d : devices) {
+                            if (d.isConnected() && d.getDeviceCoordinator().supportsSleepAsAndroid()) {
+                                targetDev = d;
+                                GBApplication.getPrefs().getPreferences().edit().putString("sleepasandroid_device", d.getAddress()).apply();
+                                break;
+                            }
                         }
                     }
-                    nodomain.freeyourgadget.gadgetbridge.util.GB.toast(getString(R.string.pref_lucid_test_no_device), android.widget.Toast.LENGTH_SHORT, nodomain.freeyourgadget.gadgetbridge.util.GB.WARN);
+                    if (targetDev == null || !targetDev.isConnected()) {
+                        for (GBDevice d : devices) {
+                            if (d.isConnected()) {
+                                targetDev = d;
+                                GBApplication.getPrefs().getPreferences().edit().putString("sleepasandroid_device", d.getAddress()).apply();
+                                break;
+                            }
+                        }
+                    }
+
+                    if (targetDev != null && targetDev.isConnected()) {
+                        GBApplication.getPrefs().getPreferences().edit()
+                                .putBoolean("pref_key_sleepasandroid_enable", true)
+                                .putBoolean("pref_key_sleepasandroid_feat_notifications", true)
+                                .apply();
+
+                        android.os.Bundle bundle = new android.os.Bundle();
+                        bundle.putBoolean("IS_TEST", true);
+                        GBApplication.deviceService().onSleepAsAndroidAction(
+                                nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction.HINT,
+                                bundle
+                        );
+                        nodomain.freeyourgadget.gadgetbridge.util.GB.toast(
+                                getString(R.string.pref_lucid_test_sent) + " (" + targetDev.getAliasOrName() + ")",
+                                android.widget.Toast.LENGTH_SHORT,
+                                nodomain.freeyourgadget.gadgetbridge.util.GB.INFO
+                        );
+                        return true;
+                    }
+
+                    if (targetDev != null) {
+                        nodomain.freeyourgadget.gadgetbridge.util.GB.toast(
+                                "手环【" + targetDev.getAliasOrName() + "】当前未连接，请返回主界面点击连接手环（首次配对请在手环屏幕点击确认对勾 √）",
+                                android.widget.Toast.LENGTH_LONG,
+                                nodomain.freeyourgadget.gadgetbridge.util.GB.WARN
+                        );
+                    } else if (!devices.isEmpty()) {
+                        nodomain.freeyourgadget.gadgetbridge.util.GB.toast(
+                                "手环未连接，请先在主界面点击【" + devices.get(0).getAliasOrName() + "】进行连接并确认手环屏幕上的对勾 √",
+                                android.widget.Toast.LENGTH_LONG,
+                                nodomain.freeyourgadget.gadgetbridge.util.GB.WARN
+                        );
+                    } else {
+                        nodomain.freeyourgadget.gadgetbridge.util.GB.toast(
+                                getString(R.string.pref_lucid_test_no_device),
+                                android.widget.Toast.LENGTH_SHORT,
+                                nodomain.freeyourgadget.gadgetbridge.util.GB.WARN
+                        );
+                    }
                     return true;
                 });
             }
@@ -155,5 +205,9 @@ public class SleepAsAndroidPreferencesActivity extends AbstractSettingsActivityV
 
         sleepAsAndroidDevices.setEntryValues(deviceMACs.toArray(new String[0]));
         sleepAsAndroidDevices.setEntries(deviceNames.toArray(new String[0]));
+        if ((sleepAsAndroidDevices.getValue() == null || sleepAsAndroidDevices.getValue().isEmpty()) && !deviceMACs.isEmpty()) {
+            sleepAsAndroidDevices.setValue(deviceMACs.get(0));
+            GBApplication.getPrefs().getPreferences().edit().putString("sleepasandroid_device", deviceMACs.get(0)).apply();
+        }
     }
 }
