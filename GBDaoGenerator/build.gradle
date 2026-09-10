@@ -5,14 +5,18 @@ apply plugin:'application'
 archivesBaseName = 'gadgetbridge-daogenerator'
 
 dependencies {
-    // https://github.com/Freeyourgadget/greenDAO/tree/fyg
-    implementation 'com.github.Freeyourgadget:greendao:1998d7cd2d21f662c6044f6ccf3b3a251bbad341'
+    // GreenDao generator sources and templates are bundled directly in this module.
+    // Only FreeMarker is needed to generate the DAO code.
+    implementation 'org.freemarker:freemarker:2.3.33'
 }
 
 sourceSets {
     main {
         java {
             srcDir 'src'
+        }
+        resources {
+            srcDir 'src-template'
         }
     }
 }
