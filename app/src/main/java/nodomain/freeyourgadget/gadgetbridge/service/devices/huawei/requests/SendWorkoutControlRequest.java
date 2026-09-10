@@ -1,4 +1,4 @@
-﻿/*  Copyright (C) 2024 Gadgetbridge Contributors
+/*  Copyright (C) 2024 Gadgetbridge Contributors
 
     This file is part of Gadgetbridge.
 
