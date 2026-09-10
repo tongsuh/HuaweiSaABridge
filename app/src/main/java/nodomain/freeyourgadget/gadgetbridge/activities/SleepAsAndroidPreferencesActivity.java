@@ -138,8 +138,13 @@ public class SleepAsAndroidPreferencesActivity extends AbstractSettingsActivityV
                                 nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction.HINT,
                                 bundle
                         );
+                        nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings lucidSettings =
+                                new nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings();
+                        String modeDesc = nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings.MODE_CONTINUOUS.equals(lucidSettings.getVibrateMode())
+                                ? (lucidSettings.getContinuousDurationSec() + "秒持续长震")
+                                : (lucidSettings.getVibrateRepeat() + "次脉冲微震");
                         nodomain.freeyourgadget.gadgetbridge.util.GB.toast(
-                                getString(R.string.pref_lucid_test_sent) + " (" + targetDev.getAliasOrName() + ")",
+                                getString(R.string.pref_lucid_test_sent) + " [" + modeDesc + "] (" + targetDev.getAliasOrName() + ")",
                                 android.widget.Toast.LENGTH_SHORT,
                                 nodomain.freeyourgadget.gadgetbridge.util.GB.INFO
                         );

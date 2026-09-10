@@ -88,6 +88,42 @@
         app:iconSpaceReserved="false">
 
         <ListPreference
+            android:key="pref_lucid_vibrate_mode"
+            android:title="@string/pref_lucid_mode_title"
+            android:summary="%s"
+            android:entries="@array/pref_lucid_mode_entries"
+            android:entryValues="@array/pref_lucid_mode_values"
+            android:defaultValue="continuous"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:key="pref_lucid_continuous_sec"
+            android:title="@string/pref_lucid_continuous_sec_title"
+            android:summary="%s"
+            android:entries="@array/pref_lucid_continuous_sec_entries"
+            android:entryValues="@array/pref_lucid_continuous_sec_values"
+            android:defaultValue="5"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:key="pref_lucid_vibrate_repeat"
+            android:title="@string/pref_lucid_repeat_title"
+            android:summary="%s"
+            android:entries="@array/pref_lucid_repeat_entries"
+            android:entryValues="@array/pref_lucid_repeat_values"
+            android:defaultValue="3"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:key="pref_lucid_pulse_interval"
+            android:title="@string/pref_lucid_interval_title"
+            android:summary="%s"
+            android:entries="@array/pref_lucid_interval_entries"
+            android:entryValues="@array/pref_lucid_interval_values"
+            android:defaultValue="800"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
             android:key="pref_lucid_vibrate_intensity"
             android:title="@string/pref_lucid_intensity_title"
             android:summary="%s"
@@ -97,21 +133,12 @@
             app:iconSpaceReserved="false" />
 
         <ListPreference
-            android:key="pref_lucid_vibrate_repeat"
-            android:title="@string/pref_lucid_repeat_title"
-            android:summary="%s"
-            android:entries="@array/pref_lucid_repeat_entries"
-            android:entryValues="@array/pref_lucid_repeat_values"
-            android:defaultValue="2"
-            app:iconSpaceReserved="false" />
-
-        <ListPreference
             android:key="pref_lucid_vibrate_duration"
             android:title="@string/pref_lucid_duration_title"
             android:summary="%s"
             android:entries="@array/pref_lucid_duration_entries"
             android:entryValues="@array/pref_lucid_duration_values"
-            android:defaultValue="150"
+            android:defaultValue="200"
             app:iconSpaceReserved="false" />
 
         <Preference

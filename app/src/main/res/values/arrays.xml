@@ -4488,6 +4488,52 @@
         <item>off</item>
     </string-array>
 
+    <string-array name="pref_lucid_mode_entries">
+        <item>@string/pref_lucid_mode_continuous</item>
+        <item>@string/pref_lucid_mode_pulse</item>
+    </string-array>
+
+    <string-array name="pref_lucid_mode_values">
+        <item>continuous</item>
+        <item>pulse</item>
+    </string-array>
+
+    <string-array name="pref_lucid_continuous_sec_entries">
+        <item>@string/pref_lucid_continuous_3s</item>
+        <item>@string/pref_lucid_continuous_5s</item>
+        <item>@string/pref_lucid_continuous_8s</item>
+        <item>@string/pref_lucid_continuous_10s</item>
+        <item>@string/pref_lucid_continuous_15s</item>
+        <item>@string/pref_lucid_continuous_20s</item>
+        <item>@string/pref_lucid_continuous_30s</item>
+    </string-array>
+
+    <string-array name="pref_lucid_continuous_sec_values">
+        <item>3</item>
+        <item>5</item>
+        <item>8</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+    </string-array>
+
+    <string-array name="pref_lucid_interval_entries">
+        <item>@string/pref_lucid_interval_400ms</item>
+        <item>@string/pref_lucid_interval_600ms</item>
+        <item>@string/pref_lucid_interval_800ms</item>
+        <item>@string/pref_lucid_interval_1000ms</item>
+        <item>@string/pref_lucid_interval_1500ms</item>
+    </string-array>
+
+    <string-array name="pref_lucid_interval_values">
+        <item>400</item>
+        <item>600</item>
+        <item>800</item>
+        <item>1000</item>
+        <item>1500</item>
+    </string-array>
+
     <string-array name="pref_lucid_intensity_entries">
         <item>@string/pref_lucid_intensity_gentle</item>
         <item>@string/pref_lucid_intensity_medium</item>
@@ -4505,6 +4551,11 @@
         <item>@string/pref_lucid_repeat_2</item>
         <item>@string/pref_lucid_repeat_3</item>
         <item>@string/pref_lucid_repeat_4</item>
+        <item>@string/pref_lucid_repeat_5</item>
+        <item>@string/pref_lucid_repeat_8</item>
+        <item>@string/pref_lucid_repeat_10</item>
+        <item>@string/pref_lucid_repeat_15</item>
+        <item>@string/pref_lucid_repeat_20</item>
     </string-array>
 
     <string-array name="pref_lucid_repeat_values">
@@ -4512,6 +4563,11 @@
         <item>2</item>
         <item>3</item>
         <item>4</item>
+        <item>5</item>
+        <item>8</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
     </string-array>
 
     <string-array name="pref_lucid_duration_entries">

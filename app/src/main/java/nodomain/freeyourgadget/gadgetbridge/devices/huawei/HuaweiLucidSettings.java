@@ -18,17 +18,29 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
  */
 public class HuaweiLucidSettings {
 
+    public static final String KEY_VIBRATE_MODE = "pref_lucid_vibrate_mode";
+    public static final String KEY_CONTINUOUS_DURATION_SEC = "pref_lucid_continuous_sec";
+    public static final String KEY_PULSE_INTERVAL_MS = "pref_lucid_pulse_interval";
     public static final String KEY_VIBRATE_INTENSITY = "pref_lucid_vibrate_intensity";
     public static final String KEY_VIBRATE_REPEAT = "pref_lucid_vibrate_repeat";
     public static final String KEY_VIBRATE_DURATION = "pref_lucid_vibrate_duration";
 
-    public static final int DEFAULT_INTENSITY = 1;     // 1=微弱(适合手腕), 2=中等, 3=强力
-    public static final int DEFAULT_REPEAT = 2;        // 默认双击 2 次
-    public static final int DEFAULT_DURATION_MS = 150; // 单次 150 毫秒
+    public static final String MODE_CONTINUOUS = "continuous";
+    public static final String MODE_PULSE = "pulse";
+
+    public static final String DEFAULT_MODE = MODE_CONTINUOUS;
+    public static final int DEFAULT_CONTINUOUS_SEC = 5;       // 默认持续长震 5 秒
+    public static final int DEFAULT_PULSE_INTERVAL_MS = 800;   // 默认脉冲间隔 800 毫秒 (防手环消息去重与马达丢震)
+    public static final int DEFAULT_INTENSITY = 1;             // 1=微弱(适合手腕), 2=中等, 3=强力
+    public static final int DEFAULT_REPEAT = 3;                // 脉冲模式默认 3 次
+    public static final int DEFAULT_DURATION_MS = 200;         // 单次脉冲时长 200 毫秒
 
     private final SharedPreferences prefs;
 
     // 内存测试备用字段 (当 context 为空时自动启用内存存储)
+    private String memoryMode = DEFAULT_MODE;
+    private int memoryContinuousSec = DEFAULT_CONTINUOUS_SEC;
+    private int memoryPulseIntervalMs = DEFAULT_PULSE_INTERVAL_MS;
     private int memoryIntensity = DEFAULT_INTENSITY;
     private int memoryRepeat = DEFAULT_REPEAT;
     private int memoryDurationMs = DEFAULT_DURATION_MS;
@@ -43,6 +55,63 @@ public class HuaweiLucidSettings {
 
     public HuaweiLucidSettings() {
         this(GBApplication.getContext());
+    }
+
+    public String getVibrateMode() {
+        if (prefs != null) {
+            return prefs.getString(KEY_VIBRATE_MODE, DEFAULT_MODE);
+        }
+        return memoryMode;
+    }
+
+    public void setVibrateMode(String mode) {
+        if (prefs != null) {
+            prefs.edit().putString(KEY_VIBRATE_MODE, mode).apply();
+        } else {
+            memoryMode = mode;
+        }
+    }
+
+    public int getContinuousDurationSec() {
+        if (prefs != null) {
+            try {
+                String str = prefs.getString(KEY_CONTINUOUS_DURATION_SEC, String.valueOf(DEFAULT_CONTINUOUS_SEC));
+                return Integer.parseInt(str);
+            } catch (Exception ignored) {
+                return prefs.getInt(KEY_CONTINUOUS_DURATION_SEC, DEFAULT_CONTINUOUS_SEC);
+            }
+        }
+        return memoryContinuousSec;
+    }
+
+    public void setContinuousDurationSec(int sec) {
+        int clamped = Math.max(1, Math.min(60, sec));
+        if (prefs != null) {
+            prefs.edit().putString(KEY_CONTINUOUS_DURATION_SEC, String.valueOf(clamped)).apply();
+        } else {
+            memoryContinuousSec = clamped;
+        }
+    }
+
+    public int getPulseIntervalMs() {
+        if (prefs != null) {
+            try {
+                String str = prefs.getString(KEY_PULSE_INTERVAL_MS, String.valueOf(DEFAULT_PULSE_INTERVAL_MS));
+                return Integer.parseInt(str);
+            } catch (Exception ignored) {
+                return prefs.getInt(KEY_PULSE_INTERVAL_MS, DEFAULT_PULSE_INTERVAL_MS);
+            }
+        }
+        return memoryPulseIntervalMs;
+    }
+
+    public void setPulseIntervalMs(int ms) {
+        int clamped = Math.max(300, Math.min(3000, ms));
+        if (prefs != null) {
+            prefs.edit().putString(KEY_PULSE_INTERVAL_MS, String.valueOf(clamped)).apply();
+        } else {
+            memoryPulseIntervalMs = clamped;
+        }
     }
 
     public int getVibrateIntensity() {
@@ -79,7 +148,7 @@ public class HuaweiLucidSettings {
     }
 
     public void setVibrateRepeat(int repeat) {
-        int clamped = Math.max(1, Math.min(10, repeat));
+        int clamped = Math.max(1, Math.min(20, repeat));
         if (prefs != null) {
             prefs.edit().putString(KEY_VIBRATE_REPEAT, String.valueOf(clamped)).apply();
         } else {

@@ -250,6 +250,7 @@ public class HuaweiSupportProvider {
 
     //TODO: we need only one instance of manager and all it services.
     protected HuaweiP2PManager huaweiP2PManager = new HuaweiP2PManager(this);
+    private volatile Thread currentVibrateThread = null;
 
     public HuaweiCoordinatorSupplier getCoordinator() {
         return ((HuaweiCoordinatorSupplier) this.gbDevice.getDeviceCoordinator());
@@ -2607,40 +2608,156 @@ public class HuaweiSupportProvider {
         LOG.info("Stopping Huawei Band 8 real-time workout heart rate streaming");
     }
 
+    public synchronized void stopOngoingVibration() {
+        if (currentVibrateThread != null && currentVibrateThread.isAlive()) {
+            currentVibrateThread.interrupt();
+            try {
+                currentVibrateThread.join(300);
+            } catch (InterruptedException ignored) {}
+            currentVibrateThread = null;
+        }
+    }
+
+    public synchronized void triggerContinuousVibration(int durationSec, String label) {
+        stopOngoingVibration();
+
+        final int sec = Math.max(1, durationSec);
+        final String notifTitle = (label != null && !label.isEmpty()) ? label : "Lucid Dream";
+
+        currentVibrateThread = new Thread(() -> {
+            LOG.info("Starting continuous vibration for {}s on Huawei Band, label: {}", sec, notifTitle);
+            try {
+                // 1. Send proprietary vibrate command
+                try {
+                    SendVibrateRequest vReq = new SendVibrateRequest(this, 3, sec * 2, 800);
+                    vReq.doPerform();
+                } catch (Exception e) {
+                    LOG.warn("SendVibrateRequest failed in continuous mode", e);
+                }
+
+                // 2. Send Call notification: triggers continuous motor vibration on Huawei Band
+                SendNotificationRequest callReq = new SendNotificationRequest(this);
+                CallSpec callSpec = new CallSpec();
+                callSpec.name = notifTitle;
+                callReq.buildNotificationTLVFromCallSpec(callSpec);
+                callReq.doPerform();
+
+                // 3. Keep vibrating for the requested duration
+                Thread.sleep(sec * 1000L);
+            } catch (InterruptedException e) {
+                LOG.info("Continuous vibration thread interrupted early");
+            } catch (Exception e) {
+                LOG.warn("Continuous vibration failed", e);
+            } finally {
+                // 4. Send StopNotificationRequest (0x0C) to cease motor vibration and dismiss call UI
+                try {
+                    StopNotificationRequest stopReq = new StopNotificationRequest(this);
+                    stopReq.doPerform();
+                    LOG.info("Continuous vibration finished and dismissed");
+                } catch (Exception e) {
+                    LOG.warn("Stopping continuous vibration call failed", e);
+                }
+            }
+        });
+        currentVibrateThread.start();
+    }
+
+    public synchronized void triggerRhythmicPulseVibration(int pulseCount, int intervalMs, int intensity, int durationMs) {
+        stopOngoingVibration();
+
+        final int count = Math.max(1, pulseCount);
+        final int interval = Math.max(400, intervalMs);
+
+        currentVibrateThread = new Thread(() -> {
+            LOG.info("Starting rhythmic pulse vibration: count={}, interval={}ms, intensity={}, duration={}ms",
+                    count, interval, intensity, durationMs);
+            for (int i = 0; i < count; i++) {
+                if (Thread.currentThread().isInterrupted()) {
+                    LOG.info("Pulse vibration interrupted at pulse {}", i);
+                    break;
+                }
+
+                try {
+                    // Send proprietary vibration packet for each pulse
+                    try {
+                        SendVibrateRequest vReq = new SendVibrateRequest(this, intensity, 1, durationMs);
+                        vReq.doPerform();
+                    } catch (Exception e) {
+                        LOG.warn("Pulse SendVibrateRequest failed", e);
+                    }
+
+                    // Anti-filtering & Anti-deduplication:
+                    // 1. Fresh unique incrementing notification ID from getNotificationId()
+                    // 2. Dynamic changing title with current progress (e.g. REM (1/3), REM (2/3))
+                    // 3. Dynamic changing body with timestamp to defeat HarmonyOS message deduplication / motor debounce suppression
+                    SendNotificationRequest notifReq = new SendNotificationRequest(this);
+                    NotificationSpec spec = new NotificationSpec();
+                    spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.UNKNOWN;
+                    spec.title = "REM (" + (i + 1) + "/" + count + ")";
+                    spec.body = "Lucid Cue #" + (i + 1) + " [" + String.format("%04d", (System.currentTimeMillis() % 10000)) + "]";
+                    notifReq.buildNotificationTLVFromNotificationSpec(spec);
+                    notifReq.doPerform();
+                } catch (Exception e) {
+                    LOG.warn("Pulse notification cue failed at index {}", i, e);
+                }
+
+                if (i < count - 1) {
+                    try {
+                        Thread.sleep(interval);
+                    } catch (InterruptedException e) {
+                        LOG.info("Pulse vibration sleep interrupted");
+                        break;
+                    }
+                }
+            }
+
+            // Dismiss notifications 1.5s after pulses end so screen turns off
+            try {
+                Thread.sleep(1500);
+                StopNotificationRequest stopReq = new StopNotificationRequest(this);
+                stopReq.doPerform();
+            } catch (Exception ignored) {}
+        });
+        currentVibrateThread.start();
+    }
+
     public void triggerLucidHint(android.os.Bundle extras) {
         nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings settings =
                 new nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings();
-        int intensity = settings.getVibrateIntensity();
-        int repeat = settings.getVibrateRepeat();
-        int duration = settings.getVibrateDurationMs();
+        String mode = settings.getVibrateMode();
 
-        if (extras != null && extras.containsKey("REPEAT")) {
-            int extRepeat = extras.getInt("REPEAT");
-            if (extRepeat > 0) {
-                repeat = extRepeat;
+        if (nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings.MODE_CONTINUOUS.equals(mode)) {
+            int continuousSec = settings.getContinuousDurationSec();
+            LOG.info("Triggering Lucid Dream continuous vibration: {} seconds", continuousSec);
+            triggerContinuousVibration(continuousSec, "Lucid Dream (REM)");
+        } else {
+            int intensity = settings.getVibrateIntensity();
+            int repeat = settings.getVibrateRepeat();
+            int duration = settings.getVibrateDurationMs();
+            int interval = settings.getPulseIntervalMs();
+
+            if (extras != null && extras.containsKey("REPEAT")) {
+                int extRepeat = extras.getInt("REPEAT");
+                if (extRepeat > 0) {
+                    repeat = extRepeat;
+                }
             }
-        }
 
-        LOG.info("Triggering Lucid Dream vibration cue: intensity={}, repeat={}, duration={}ms", intensity, repeat, duration);
-        sendVibrateCommand(intensity, repeat, duration);
+            LOG.info("Triggering Lucid Dream pulse vibration: count={}, interval={}ms, intensity={}, duration={}ms",
+                    repeat, interval, intensity, duration);
+            triggerRhythmicPulseVibration(repeat, interval, intensity, duration);
+        }
     }
 
     public void triggerAlarmVibration() {
-        LOG.info("Triggering SaA alarm strong vibration on Huawei Band");
-        sendVibrateCommand(3, 8, 800);
-        try {
-            SendNotificationRequest callReq = new SendNotificationRequest(this);
-            CallSpec callSpec = new CallSpec();
-            callSpec.name = "Alarm (Sleep as Android)";
-            callReq.buildNotificationTLVFromCallSpec(callSpec);
-            callReq.doPerform();
-        } catch (Exception e) {
-            LOG.warn("Alarm call vibration trigger failed", e);
-        }
+        LOG.info("Triggering SaA alarm vibration on Huawei Band");
+        // Alarm is always sustained continuous vibration (up to 30s or until stopped)
+        triggerContinuousVibration(30, "Alarm (Sleep as Android)");
     }
 
     public void stopAlarmVibration() {
         LOG.info("Stopping SaA alarm vibration on Huawei Band");
+        stopOngoingVibration();
         try {
             StopNotificationRequest stopReq = new StopNotificationRequest(this);
             stopReq.doPerform();
@@ -2651,48 +2768,21 @@ public class HuaweiSupportProvider {
 
     public void triggerFindDevice() {
         LOG.info("Triggering Find Device vibration on Huawei Band");
-        sendVibrateCommand(2, 4, 300);
+        triggerContinuousVibration(5, "Find Device");
     }
 
     public void sendVibrateCommand(int intensity, int repeat, int durationMs) {
         LOG.info("sendVibrateCommand: intensity={}, repeat={}, duration={}ms", intensity, repeat, durationMs);
-        try {
-            SendVibrateRequest req = new SendVibrateRequest(this, intensity, repeat, durationMs);
-            req.doPerform();
-        } catch (Exception e) {
-            LOG.warn("SendVibrateRequest failed", e);
+        nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings settings =
+                new nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings();
+        String mode = settings.getVibrateMode();
+
+        if (nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLucidSettings.MODE_CONTINUOUS.equals(mode)) {
+            int continuousSec = settings.getContinuousDurationSec();
+            triggerContinuousVibration(continuousSec, "Band Vibration");
+        } else {
+            int interval = settings.getPulseIntervalMs();
+            triggerRhythmicPulseVibration(repeat, interval, intensity, durationMs);
         }
-
-        final int pulseCount = Math.max(1, repeat);
-        final int interval = Math.max(250, durationMs + 100);
-
-        new Thread(() -> {
-            for (int i = 0; i < pulseCount; i++) {
-                try {
-                    SendNotificationRequest notifReq = new SendNotificationRequest(this);
-                    NotificationSpec spec = new NotificationSpec();
-                    spec.type = nodomain.freeyourgadget.gadgetbridge.model.NotificationType.UNKNOWN;
-                    spec.title = "REM";
-                    spec.body = "Lucid Cue";
-                    notifReq.buildNotificationTLVFromNotificationSpec(spec);
-                    notifReq.doPerform();
-                } catch (Exception e) {
-                    LOG.warn("Notification vibration cue failed", e);
-                }
-
-                if (i < pulseCount - 1) {
-                    try {
-                        Thread.sleep(interval);
-                    } catch (InterruptedException ignored) {}
-                }
-            }
-
-            // Automatically dismiss/clear the notification 1.2s later so the screen turns off and does not leave unread notifications
-            try {
-                Thread.sleep(1200);
-                StopNotificationRequest stopReq = new StopNotificationRequest(this);
-                stopReq.doPerform();
-            } catch (Exception ignored) {}
-        }).start();
     }
 }
