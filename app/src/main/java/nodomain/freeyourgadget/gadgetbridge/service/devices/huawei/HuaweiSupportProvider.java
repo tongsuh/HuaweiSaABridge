@@ -135,6 +135,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.Send
 import nodomain.freeyourgadget.gadgetbridge.service.SleepAsAndroidSender;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetAutomaticHeartrateRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetTruSleepRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetAutomaticSpoRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetDisconnectNotification;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetMediumToStrengthThresholdRequest;
@@ -1588,17 +1589,37 @@ public class HuaweiSupportProvider {
             activitySample.setProvider(sampleProvider);
 
             sampleProvider.addGBActivitySample(activitySample);
+
+            if (sleepAsAndroidSender != null && sleepAsAndroidSender.isTrackingOngoing()) {
+                int hrInt = heartrate & 0xFF;
+                if (hrInt >= 30 && hrInt <= 230) {
+                    sleepAsAndroidSender.onHrChanged(hrInt, 0);
+                }
+                if (steps > 0) {
+                    float motion = Math.min(10.0f, steps * 0.5f);
+                    sleepAsAndroidSender.onAccelChanged(motion, 0, 0);
+                }
+            }
         } catch (Exception e) {
             LOG.error("Failed to add step data to database", e);
         }
     }
+
+    private int lastTotalSteps = -1;
 
     public void addTotalFitnessData(int steps, int calories, int distance) {
         LOG.debug("FITNESS total steps: {}", steps);
         LOG.debug("FITNESS total calories: {}", calories); // TODO: May actually be kilocalories
         LOG.debug("FITNESS total distance: {} m", distance);
 
-        // TODO: potentially do more with this, maybe through realtime data?
+        if (sleepAsAndroidSender != null && sleepAsAndroidSender.isTrackingOngoing()) {
+            if (lastTotalSteps >= 0 && steps >= lastTotalSteps) {
+                int delta = steps - lastTotalSteps;
+                float motion = (delta > 0) ? Math.min(10.0f, delta * 1.5f) : 0.05f;
+                sleepAsAndroidSender.onAccelChanged(motion, 0, 0);
+            }
+            lastTotalSteps = steps;
+        }
     }
 
     public Long addWorkoutTotalsData(Workout.WorkoutTotals.Response packet) {
@@ -2529,6 +2550,32 @@ public class HuaweiSupportProvider {
         return sleepAsAndroidSender;
     }
 
+    private long lastStartTrackingTimestamp = 0;
+
+    private final Runnable sleepTrackingPollingRunner = new Runnable() {
+        @Override
+        public void run() {
+            if (sleepAsAndroidSender != null && sleepAsAndroidSender.isTrackingOngoing()) {
+                try {
+                    GetFitnessTotalsRequest req = new GetFitnessTotalsRequest(HuaweiSupportProvider.this);
+                    req.doPerform();
+                } catch (Exception e) {
+                    LOG.debug("Sleep tracking polling error: {}", e.getMessage());
+                }
+                handler.postDelayed(this, 3000L);
+            }
+        }
+    };
+
+    private void startSleepTrackingPollingRunner() {
+        handler.removeCallbacks(sleepTrackingPollingRunner);
+        handler.postDelayed(sleepTrackingPollingRunner, 2000L);
+    }
+
+    private void stopSleepTrackingPollingRunner() {
+        handler.removeCallbacks(sleepTrackingPollingRunner);
+    }
+
     public void onSleepAsAndroidAction(String action, android.os.Bundle extras) {
         SleepAsAndroidSender sender = getSleepAsAndroidSender();
         if (sender == null) return;
@@ -2550,6 +2597,7 @@ public class HuaweiSupportProvider {
                 sender.confirmConnected();
                 break;
             case SleepAsAndroidAction.START_TRACKING:
+                lastStartTrackingTimestamp = System.currentTimeMillis();
                 startRealtimeWorkoutHeartrate();
                 sender.startTracking();
                 break;
@@ -2566,6 +2614,10 @@ public class HuaweiSupportProvider {
                 sender.setBatchSize(batchSize);
                 break;
             case SleepAsAndroidAction.HINT:
+                if (System.currentTimeMillis() - lastStartTrackingTimestamp < 8000L) {
+                    LOG.info("Suppressing SleepAsAndroid HINT arriving within 8s cooldown after START_TRACKING");
+                    break;
+                }
                 triggerLucidHint(extras);
                 break;
             case SleepAsAndroidAction.START_ALARM:
@@ -2589,23 +2641,54 @@ public class HuaweiSupportProvider {
     }
 
     public void startRealtimeWorkoutHeartrate() {
+        LOG.info("Starting Huawei Band real-time workout heart rate, TruSleep, and polling for SaA");
         try {
-            LOG.info("Starting Huawei Band 8 real-time workout heart rate streaming for SaA");
-            SendNotifyHeartRateCapabilityRequest req = new SendNotifyHeartRateCapabilityRequest(this);
-            req.doPerform();
-        } catch (Exception e) {
-            LOG.error("Failed to start realtime workout heart rate", e);
-        }
-        try {
-            SetAutomaticHeartrateRequest autoHrReq = new SetAutomaticHeartrateRequest(this);
+            // Force enable continuous automatic heart rate so green optical PPG sensor turns on
+            SetAutomaticHeartrateRequest autoHrReq = new SetAutomaticHeartrateRequest(this, true);
             autoHrReq.doPerform();
         } catch (Exception e) {
             LOG.warn("Failed to ensure automatic heart rate for SaA", e);
         }
+        try {
+            // Force enable TruSleep high-precision optical PPG tracking
+            SetTruSleepRequest truSleepReq = new SetTruSleepRequest(this, true);
+            truSleepReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to ensure TruSleep for SaA", e);
+        }
+        try {
+            SendNotifyHeartRateCapabilityRequest req = new SendNotifyHeartRateCapabilityRequest(this);
+            req.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to start realtime workout heart rate capability", e);
+        }
+        try {
+            SendNotifyRestHeartRateCapabilityRequest restReq = new SendNotifyRestHeartRateCapabilityRequest(this);
+            restReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to notify rest heart rate capability", e);
+        }
+        startSleepTrackingPollingRunner();
     }
 
     public void stopRealtimeWorkoutHeartrate() {
-        LOG.info("Stopping Huawei Band 8 real-time workout heart rate streaming");
+        LOG.info("Stopping Huawei Band real-time workout heart rate streaming");
+        stopSleepTrackingPollingRunner();
+        lastTotalSteps = -1;
+        try {
+            // Restore configured automatic heart rate preference
+            SetAutomaticHeartrateRequest autoHrReq = new SetAutomaticHeartrateRequest(this);
+            autoHrReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to restore automatic heart rate after SaA tracking", e);
+        }
+        try {
+            // Restore configured TruSleep preference
+            SetTruSleepRequest truSleepReq = new SetTruSleepRequest(this);
+            truSleepReq.doPerform();
+        } catch (Exception e) {
+            LOG.warn("Failed to restore TruSleep after SaA tracking", e);
+        }
     }
 
     public synchronized void stopOngoingVibration() {

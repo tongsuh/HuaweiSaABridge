@@ -30,22 +30,34 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupport
 public class SetTruSleepRequest extends Request {
     private static final Logger LOG = LoggerFactory.getLogger(SetTruSleepRequest.class);
 
+    private final Boolean forcedEnable;
+
     public SetTruSleepRequest(HuaweiSupportProvider support) {
+        this(support, null);
+    }
+
+    public SetTruSleepRequest(HuaweiSupportProvider support, Boolean forcedEnable) {
         super(support);
         this.serviceId = FitnessData.id;
         this.commandId = FitnessData.TruSleep.id;
+        this.forcedEnable = forcedEnable;
     }
 
     @Override
     protected boolean requestSupported() {
-        return supportProvider.getHuaweiCoordinator().supportsTruSleep();
+        return forcedEnable != null || supportProvider.getHuaweiCoordinator().supportsTruSleep();
     }
 
     @Override
     protected List<byte[]> createRequest() throws RequestCreationException {
-        boolean truSleepSwitch = GBApplication
-                .getDeviceSpecificSharedPrefs(this.getDevice().getAddress())
-                .getBoolean(HuaweiConstants.PREF_HUAWEI_TRUSLEEP, false);
+        boolean truSleepSwitch;
+        if (forcedEnable != null) {
+            truSleepSwitch = forcedEnable;
+        } else {
+            truSleepSwitch = GBApplication
+                    .getDeviceSpecificSharedPrefs(this.getDevice().getAddress())
+                    .getBoolean(HuaweiConstants.PREF_HUAWEI_TRUSLEEP, false);
+        }
         try {
             return new FitnessData.TruSleep.Request(paramsProvider, truSleepSwitch).serialize();
         } catch (HuaweiPacket.CryptoException e) {

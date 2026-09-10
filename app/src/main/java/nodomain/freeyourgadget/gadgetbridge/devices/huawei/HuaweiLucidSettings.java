@@ -28,7 +28,7 @@ public class HuaweiLucidSettings {
     public static final String MODE_CONTINUOUS = "continuous";
     public static final String MODE_PULSE = "pulse";
 
-    public static final String DEFAULT_MODE = MODE_CONTINUOUS;
+    public static final String DEFAULT_MODE = MODE_PULSE;
     public static final int DEFAULT_CONTINUOUS_SEC = 5;       // 默认持续长震 5 秒
     public static final int DEFAULT_PULSE_INTERVAL_MS = 800;   // 默认脉冲间隔 800 毫秒 (防手环消息去重与马达丢震)
     public static final int DEFAULT_INTENSITY = 1;             // 1=微弱(适合手腕), 2=中等, 3=强力

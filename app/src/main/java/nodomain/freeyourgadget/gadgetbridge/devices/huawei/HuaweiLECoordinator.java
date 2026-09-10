@@ -27,6 +27,8 @@ import androidx.annotation.NonNull;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -35,6 +37,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.SleepAsAndroidFeature;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -55,6 +58,21 @@ public abstract class HuaweiLECoordinator extends AbstractBLEDeviceCoordinator i
     @Override
     public HuaweiCoordinator getHuaweiCoordinator() {
         return huaweiCoordinator;
+    }
+
+    @Override
+    public boolean supportsSleepAsAndroid() {
+        return true;
+    }
+
+    @Override
+    public Set<SleepAsAndroidFeature> getSleepAsAndroidFeatures() {
+        return EnumSet.of(
+                SleepAsAndroidFeature.ACCELEROMETER,
+                SleepAsAndroidFeature.HEART_RATE,
+                SleepAsAndroidFeature.ALARMS,
+                SleepAsAndroidFeature.NOTIFICATIONS
+        );
     }
 
     @NonNull

@@ -144,31 +144,54 @@ public class AsynchronousResponse {
             HuaweiTLV tlv = response.getTlv();
             if (tlv != null) {
                 try {
-                    int hr = -1;
-                    if (tlv.contains(0x02)) {
-                        hr = tlv.getByte(0x02) & 0xFF;
-                    } else if (tlv.contains(0x17)) {
-                        hr = tlv.getByte(0x17) & 0xFF;
+                    Integer hr = extractTagValue(tlv, 0x02);
+                    if (hr == null || hr < 30 || hr > 230) {
+                        hr = extractTagValue(tlv, 0x17);
                     }
 
-                    if (hr >= 30 && hr <= 220) {
+                    if (hr != null && hr >= 30 && hr <= 230) {
+                        LOG.debug("Forwarding real-time HR to SaA: {}", hr);
                         support.getSleepAsAndroidSender().onHrChanged(hr, 1000);
                     }
 
-                    if (tlv.contains(0x04)) {
-                        int cadence = tlv.getShort(0x04) & 0xFFFF;
+                    Integer cadence = extractTagValue(tlv, 0x04);
+                    if (cadence != null && cadence > 0) {
                         float motion = Math.min(10.0f, (cadence / 60.0f) * 1.5f);
                         support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
-                    } else if (tlv.contains(0x06)) {
-                        int intensity = tlv.getByte(0x06) & 0xFF;
-                        float motion = Math.min(10.0f, intensity / 10.0f);
-                        support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
+                    } else {
+                        Integer intensity = extractTagValue(tlv, 0x06);
+                        if (intensity != null && intensity > 0) {
+                            float motion = Math.min(10.0f, intensity / 10.0f);
+                            support.getSleepAsAndroidSender().onAccelChanged(motion, 0, 0);
+                        }
                     }
                 } catch (Exception e) {
                     LOG.debug("Error parsing SaA telemetry from Huawei packet: " + e.getMessage());
                 }
             }
         }
+    }
+
+    private Integer extractTagValue(HuaweiTLV tlv, int tag) {
+        if (tlv == null) return null;
+        if (tlv.contains(tag)) {
+            try {
+                return tlv.getAsInteger(tag);
+            } catch (Exception ignored) {}
+        }
+        try {
+            for (HuaweiTLV.TLV item : tlv.get()) {
+                byte itemTag = item.getTag();
+                if ((itemTag & 0x80) != 0) {
+                    try {
+                        HuaweiTLV sub = new HuaweiTLV().parse(item.getValue());
+                        Integer val = extractTagValue(sub, tag);
+                        if (val != null) return val;
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     private void handleFindPhone(HuaweiPacket response) throws Request.ResponseParseException {

@@ -30,18 +30,30 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupport
 public class SetAutomaticHeartrateRequest extends Request {
     private static final Logger LOG = LoggerFactory.getLogger(SetAutomaticHeartrateRequest.class);
 
+    private final Boolean forcedEnable;
+
     public SetAutomaticHeartrateRequest(HuaweiSupportProvider support) {
+        this(support, null);
+    }
+
+    public SetAutomaticHeartrateRequest(HuaweiSupportProvider support, Boolean forcedEnable) {
         super(support);
         this.serviceId = FitnessData.id;
         this.commandId = FitnessData.EnableAutomaticHeartrate.id;
         this.addToResponse = false;
+        this.forcedEnable = forcedEnable;
     }
 
     @Override
     protected List<byte[]> createRequest() throws RequestCreationException {
-        boolean automaticHeartrateEnabled = GBApplication
-                .getDeviceSpecificSharedPrefs(supportProvider.getDevice().getAddress())
-                .getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_AUTOMATIC_ENABLE, false);
+        boolean automaticHeartrateEnabled;
+        if (forcedEnable != null) {
+            automaticHeartrateEnabled = forcedEnable;
+        } else {
+            automaticHeartrateEnabled = GBApplication
+                    .getDeviceSpecificSharedPrefs(supportProvider.getDevice().getAddress())
+                    .getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_AUTOMATIC_ENABLE, false);
+        }
         if (automaticHeartrateEnabled)
             LOG.info("Attempting to enable automatic heartrate");
         else

@@ -114,6 +114,10 @@ public class SleepAsAndroidSender {
         return features;
     }
 
+    public boolean isTrackingOngoing() {
+        return trackingOngoing;
+    }
+
     /**
      * Start tracking
      */
@@ -128,7 +132,7 @@ public class SleepAsAndroidSender {
             public void run() {
                 aggregateAndSendAccelData();
             }
-        }, 9999, 9999, TimeUnit.MILLISECONDS);
+        }, 1000, 1000, TimeUnit.MILLISECONDS);
 
         lastRawDataMs = System.currentTimeMillis();
         lastHrDataMs = System.currentTimeMillis();
@@ -267,12 +271,10 @@ public class SleepAsAndroidSender {
      */
     private synchronized void aggregateAndSendAccelData() {
         if (!trackingOngoing || trackingPaused) return;
-        if (maxRawData > 0) {
-            accData.add(maxRawData);
-            maxRawData = 0;
-            if (accData.size() == batchSize) {
-                sendAccelData();
-            }
+        accData.add(maxRawData);
+        maxRawData = 0;
+        if (accData.size() >= batchSize || batchSize <= 2) {
+            sendAccelData();
         }
     }
 
@@ -280,6 +282,7 @@ public class SleepAsAndroidSender {
      * Send the acceleration data
      */
     private void sendAccelData() {
+        if (accData.isEmpty()) return;
         LOG.debug("Sending movement data: " + this.accData + " batch size: " + batchSize + " array size: " + accData.size());
         Intent intent = new Intent(ACTION_MOVEMENT_DATA_UPDATE);
         intent.putExtra(MAX_RAW_DATA, convertToFloatArray(this.accData));
@@ -329,7 +332,7 @@ public class SleepAsAndroidSender {
             lastHrDataMs = System.currentTimeMillis();
         }
         long ms = System.currentTimeMillis();
-        if (ms - lastHrDataMs >= sendDelay) {
+        if (ms - lastHrDataMs >= sendDelay || sendDelay <= 0) {
             lastHrDataMs = ms;
             sendHrData();
         }
